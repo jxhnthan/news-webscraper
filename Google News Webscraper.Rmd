@@ -1,0 +1,64 @@
+---
+title: "Webscraping"
+output: html_document
+date: "2023-02-15"
+---
+
+```{r web scraping}
+library(rvest)
+library(tidyverse)
+library(openxlsx)
+library(dplyr)
+
+# set the base URL for the search
+base_url <- "https://news.google.com"
+
+# loop through the first 10 pages of search results
+for (page_num in 1:10) {
+  
+  # build the URL for the search page
+  url <- paste0(base_url, "/search?q=%22TIn%20Pei%20Ling%22&hl=en-SG&gl=SG&ceid=SG%3Aen",(page_num - 1) * 100)
+  
+  # read the HTML of the search page
+  webpage <- read_html(url)
+  
+  # extract the news articles from the page
+  news_div <- html_nodes(webpage, ".xrnccd")
+  news_title <- html_nodes(news_div, ".DY5T1d") %>% html_text()
+  news_date <- html_nodes(news_div, ".WW6dff") %>% html_text()
+  news_url <- html_nodes(news_div, ".DY5T1d") %>% html_attr("href") %>% str_remove("^\\.")
+  news_outlet <- html_nodes(news_div, ".wEwyrc") %>% html_text()
+  news_link <- lapply(news_url, function(url) paste0(base_url, url))
+  
+  # combine the data into a data frame
+  page_df <- data.frame(title = news_title, outlet = news_outlet, link = unlist(news_link), date = news_date)
+  
+  # append the data frame to the overall data
+  if (page_num == 1) {
+    news_df <- page_df
+  } else {
+    news_df <- rbind(news_df, page_df)
+  }
+  
+}
+
+# Filter the data frame for unique values based on the `link` column
+news_df_unique <- distinct(news_df, link, .keep_all = TRUE)
+
+# print the data frame
+news_df_unique
+```
+
+```{r data export}
+# Create a new workbook
+wb <- createWorkbook()
+
+# Add a new sheet to the workbook
+addWorksheet(wb, "News Articles")
+
+# Write the data frame to the sheet
+writeData(wb, "News Articles", news_df_unique)
+
+# Save the workbook to a file
+saveWorkbook(wb, "news_articles.xlsx", overwrite = TRUE)
+```
